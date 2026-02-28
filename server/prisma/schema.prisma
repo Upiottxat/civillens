@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum Role {
+  CITIZEN
+  AUTHORITY
+  ADMIN
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum Status {
+  SUBMITTED
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  BREACHED
+}
+
+// ─── Models ─────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid())
+  phone     String   @unique
+  name      String?
+  role      Role     @default(CITIZEN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  complaints         Complaint[]  @relation("CitizenComplaints")
+  assignedComplaints Complaint[]  @relation("AssignedComplaints")
+
+  @@map("users")
+}
+
+model Department {
+  id         String      @id @default(uuid())
+  name       String      @unique
+  createdAt  DateTime    @default(now())
+
+  complaints Complaint[]
+  slaRules   SLARule[]
+
+  @@map("departments")
+}
+
+model SLARule {
+  id           String     @id @default(uuid())
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  issueType    String
+  severity     Severity
+  hoursAllowed Int
+
+  @@unique([departmentId, issueType, severity])
+  @@map("sla_rules")
+}
+
+model Complaint {
+  id             String    @id @default(uuid())
+  citizenId      String
+  citizen        User      @relation("CitizenComplaints", fields: [citizenId], references: [id])
+  departmentId   String
+  department     Department @relation(fields: [departmentId], references: [id])
+
+  issueType      String
+  description    String?
+  imageUrl       String?
+  proofImageUrl  String?     // authority uploads after resolution
+
+  latitude       Float
+  longitude      Float
+  locationLabel  String?     // reverse geocoded label
+
+  severity       Severity
+  priorityScore  Int         // 0–100, calculated on submission
+  priorityBreakdown Json?    // { severity, zone, population, duplicates }
+  status         Status      @default(SUBMITTED)
+
+  slaDeadline    DateTime    // set on submission
+  slaBreached    Boolean     @default(false)
+
+  assignedToId   String?
+  assignedTo     User?       @relation("AssignedComplaints", fields: [assignedToId], references: [id])
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  resolvedAt     DateTime?
+
+  statusHistory  StatusHistory[]
+  duplicateOf    String?     // points to parent complaint ID if duplicate
+
+  @@index([citizenId])
+  @@index([departmentId])
+  @@index([status])
+  @@index([slaBreached])
+  @@index([slaDeadline])
+  @@map("complaints")
+}
+
+model StatusHistory {
+  id          String    @id @default(uuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id])
+  status      Status
+  note        String?
+  changedById String    // user id or "system"
+  createdAt   DateTime  @default(now())
+
+  @@index([complaintId])
+  @@map("status_history")
+}

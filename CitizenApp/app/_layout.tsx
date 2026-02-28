@@ -65,7 +65,7 @@ function RootLayoutNav() {
     // Only redirect if we're on a different route than expected
     if (!isAuthenticated && !inAuthGroup) {
       // User is not authenticated, redirect to login
-      router.replace('/(auth)');
+      router.replace('/(auth)/Login');
     } else if (isAuthenticated && inAuthGroup && currentPath !== '(tabs)') {
       // User is authenticated but on auth screen, redirect to tabs
       // Add a delay to prevent interference with button presses
@@ -82,6 +82,11 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name='(tabs)/NotificationsScreen' options={{ headerShown: false }} />
+        <Stack.Screen name='(tabs)/MyIssuesScreen' options={{ headerShown: false }} />
+        <Stack.Screen name='(tabs)/IssueDetails' options={{ headerShown: false }} />
+        <Stack.Screen name='(tabs)/ReportScreen' options={{ headerShown: false }} />
+        <Stack.Screen name='(tabs)/index' options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );

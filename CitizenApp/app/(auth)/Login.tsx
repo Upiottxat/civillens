@@ -20,6 +20,7 @@ export default function WelcomeScreen() {
   const [phone, setPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const [IsPhoneInputBarShow, setIsPhoneInputBarShow] = useState(false);
   const { login } = useAuth();
 
   const handleOTPLogin = async () => {
@@ -32,8 +33,7 @@ export default function WelcomeScreen() {
 
     setIsLoading(true);
     try {
-      // Here you would typically send OTP to the phone number
-      // For now, we'll simulate a successful login
+
       await login();
       // Navigation will happen automatically via the auth context
       router.replace("/(tabs)");
@@ -104,14 +104,21 @@ export default function WelcomeScreen() {
             <Text style={{ fontSize: 16 }}>📱</Text>
           </View>
 
-          <TextInput
+      {IsPhoneInputBarShow?    <TextInput
             placeholder="Enter 10-digit mobile number"
             keyboardType="number-pad"
             maxLength={10}
             value={phone}
             onChangeText={setPhone}
             style={styles.input}
-          />
+          /> :   <TextInput
+          placeholder="Enter 6-Digit OTP"
+          keyboardType="number-pad"
+          maxLength={6}
+          value={phone}
+          onChangeText={setPhone}
+          style={styles.input}
+        /> }
         </View>
 
         {/* OTP Button */}

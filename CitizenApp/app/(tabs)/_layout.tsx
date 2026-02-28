@@ -1,5 +1,8 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
+import { faWpforms } from '@fortawesome/free-brands-svg-icons';
+import { faHome } from '@fortawesome/free-regular-svg-icons';
 import { Link, Tabs } from 'expo-router';
 import { Pressable } from 'react-native';
 
@@ -24,36 +27,38 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         // Disable the static render of the header on web
         // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
+        headerShown: false,
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Tab One',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable>
-                {({ pressed }) => (
-                  <FontAwesome
-                    name="info-circle"
-                    size={25}
-                    color={Colors[colorScheme ?? 'light'].text}
-                    style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
-          ),
+          title: 'Home',
+          tabBarIcon: ({ color }) => <FontAwesomeIcon icon={faHome as any} size={24} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="ReportScreen"
         options={{
-          title: 'Tab Two',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          title: 'Report',
+          tabBarIcon: ({ color }) => <FontAwesome name="plus-circle" size={24} color={color} />,
         }}
       />
+       <Tabs.Screen
+        name="MyIssuesScreen"
+        options={{
+          title: 'MyIssues',
+          tabBarIcon: ({ color }) => <FontAwesomeIcon icon={faWpforms as any} size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="NotificationsScreen"
+        options={{
+          title: 'Notifications',
+          tabBarIcon: ({ color }) => <TabBarIcon name="bell-o" color={color} />,
+        }}
+      />
+
+
     </Tabs>
   );
 }
