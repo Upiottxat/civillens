@@ -8,9 +8,15 @@ importers:
 
   .:
     dependencies:
+      expo-image-picker:
+        specifier: ^55.0.10
+        version: 55.0.10(expo@55.0.4)
       expo-linear-gradient:
         specifier: ^55.0.8
         version: 55.0.8(expo@55.0.4)(react-native@0.84.1(@babel/core@7.29.0)(react@19.2.4))(react@19.2.4)
+      expo-location:
+        specifier: ^55.1.2
+        version: 55.1.2(expo@55.0.4)
       react-native-svg:
         specifier: ^15.15.3
         version: 15.15.3(react-native@0.84.1(@babel/core@7.29.0)(react@19.2.4))(react@19.2.4)
@@ -1305,6 +1311,16 @@ packages:
       react: '*'
       react-native: '*'
 
+  expo-image-loader@55.0.0:
+    resolution: {integrity: sha512-NOjp56wDrfuA5aiNAybBIjqIn1IxKeGJ8CECWZncQ/GzjZfyTYAHTCyeApYkdKkMBLHINzI4BbTGSlbCa0fXXQ==}
+    peerDependencies:
+      expo: '*'
+
+  expo-image-picker@55.0.10:
+    resolution: {integrity: sha512-uspDWjNBNjUD//MLzu7oEtT9cuNgW5pd6HxPfAJffRIdkdCUCYxLYXRp5pfB6JtW640eCdvm2QEQrQC172Y62g==}
+    peerDependencies:
+      expo: '*'
+
   expo-keep-awake@55.0.4:
     resolution: {integrity: sha512-vwfdMtMS5Fxaon8gC0AiE70SpxTsHJ+rjeoVJl8kdfdbxczF7OIaVmfjFJ5Gfigd/WZiLqxhfZk34VAkXF4PNg==}
     peerDependencies:
@@ -1317,6 +1333,11 @@ packages:
       expo: '*'
       react: '*'
       react-native: '*'
+
+  expo-location@55.1.2:
+    resolution: {integrity: sha512-QT/9Hh0mjBnsJD1A6VYVKskFK9PODTpHVMA3DmGDTbvKS55yhY/fj6f28dn3zAYTaLAWIZa5j3/C+LCJSq7kwA==}
+    peerDependencies:
+      expo: '*'
 
   expo-modules-autolinking@55.0.8:
     resolution: {integrity: sha512-nrWB1pkNp7bR8ECUTgYUiJ2Pyh6AvxCBXZ+lyPlfl1TzEIGhwU1Yqr+d78eJDueXaW+9zKeE0HqrTZoLS3ve4A==}
@@ -4177,6 +4198,15 @@ snapshots:
       react: 19.2.4
       react-native: 0.84.1(@babel/core@7.29.0)(react@19.2.4)
 
+  expo-image-loader@55.0.0(expo@55.0.4):
+    dependencies:
+      expo: 55.0.4(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(react-native@0.84.1(@babel/core@7.29.0)(react@19.2.4))(react@19.2.4)
+
+  expo-image-picker@55.0.10(expo@55.0.4):
+    dependencies:
+      expo: 55.0.4(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(react-native@0.84.1(@babel/core@7.29.0)(react@19.2.4))(react@19.2.4)
+      expo-image-loader: 55.0.0(expo@55.0.4)
+
   expo-keep-awake@55.0.4(expo@55.0.4)(react@19.2.4):
     dependencies:
       expo: 55.0.4(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(react-native@0.84.1(@babel/core@7.29.0)(react@19.2.4))(react@19.2.4)
@@ -4187,6 +4217,11 @@ snapshots:
       expo: 55.0.4(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(react-native@0.84.1(@babel/core@7.29.0)(react@19.2.4))(react@19.2.4)
       react: 19.2.4
       react-native: 0.84.1(@babel/core@7.29.0)(react@19.2.4)
+
+  expo-location@55.1.2(expo@55.0.4):
+    dependencies:
+      '@expo/image-utils': 0.8.12
+      expo: 55.0.4(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(react-native@0.84.1(@babel/core@7.29.0)(react@19.2.4))(react@19.2.4)
 
   expo-modules-autolinking@55.0.8:
     dependencies:

@@ -1,6 +1,8 @@
 {
 	"dependencies": {
+		"expo-image-picker": "^55.0.10",
 		"expo-linear-gradient": "^55.0.8",
+		"expo-location": "^55.1.2",
 		"react-native-svg": "^15.15.3"
 	}
 }

@@ -16,16 +16,17 @@ import { useRouter } from "expo-router";
 import CiviLensLogo from "../../components/Logo";
 import { useAuth } from "@/contexts/AuthContext";
 
+type LoginStep = "phone" | "otp";
+
 export default function WelcomeScreen() {
   const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [step, setStep] = useState<LoginStep>("phone");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const [IsPhoneInputBarShow, setIsPhoneInputBarShow] = useState(false);
-  const { login } = useAuth();
+  const { sendOtp, verifyOtp } = useAuth();
 
-  const handleOTPLogin = async () => {
-    console.log("handle OTP Login is called");
-    
+  const handleSendOTP = async () => {
     if (phone.length !== 10) {
       Alert.alert("Invalid Phone Number", "Please enter a valid 10-digit mobile number");
       return;
@@ -33,26 +34,55 @@ export default function WelcomeScreen() {
 
     setIsLoading(true);
     try {
-
-      await login();
-      // Navigation will happen automatically via the auth context
-      router.replace("/(tabs)");
+      const result = await sendOtp(phone);
+      if (result.success) {
+        setStep("otp");
+      } else {
+        Alert.alert("Error", result.error || "Failed to send OTP");
+      }
     } catch (error) {
-      Alert.alert("Login Failed", "Please try again");
-      console.error("Login error:", error);
+      Alert.alert("Error", "Network error. Is the server running?");
+      console.error("Send OTP error:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    if (otp.length !== 6) {
+      Alert.alert("Invalid OTP", "Please enter the 6-digit OTP");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await verifyOtp(phone, otp);
+      if (result.success) {
+        router.replace("/(tabs)");
+      } else {
+        Alert.alert("Invalid OTP", result.error || "Please check the OTP and try again");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Verification failed. Please try again.");
+      console.error("Verify OTP error:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleDigiLockerLogin = async () => {
+    // For demo: auto-login as the seeded citizen user
     setIsLoading(true);
     try {
-      // Here you would typically handle DigiLocker authentication
-      // For now, we'll simulate a successful login
-      await login();
-      // Navigation will happen automatically via the auth context
-      router.replace("/(tabs)");
+      const sendResult = await sendOtp("9876543210");
+      if (sendResult.success) {
+        const verifyResult = await verifyOtp("9876543210", "123456");
+        if (verifyResult.success) {
+          router.replace("/(tabs)");
+          return;
+        }
+      }
+      Alert.alert("Login Failed", "Please try again");
     } catch (error) {
       Alert.alert("Login Failed", "Please try again");
       console.error("Login error:", error);
@@ -62,7 +92,7 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <ScrollView 
+    <ScrollView
       contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
@@ -76,7 +106,7 @@ export default function WelcomeScreen() {
 
         <Text style={styles.title}>CiviLens</Text>
         <Text style={styles.subtitle}>
-        Report civic issues. Track resolution. Hold authorities accountable.
+          Report civic issues. Track resolution. Hold authorities accountable.
         </Text>
 
         <View style={styles.badgesContainer}>
@@ -97,46 +127,87 @@ export default function WelcomeScreen() {
           Report civic issues with transparency
         </Text>
 
-        <Text style={styles.label}>Mobile Number</Text>
+        {step === "phone" ? (
+          <>
+            <Text style={styles.label}>Mobile Number</Text>
+            <View style={styles.phoneContainer}>
+              <View style={styles.countryCode}>
+                <Text style={{ fontSize: 16 }}>📱</Text>
+              </View>
+              <TextInput
+                placeholder="Enter 10-digit mobile number"
+                keyboardType="number-pad"
+                maxLength={10}
+                value={phone}
+                onChangeText={setPhone}
+                style={styles.input}
+              />
+            </View>
 
-        <View style={styles.phoneContainer}>
-          <View style={styles.countryCode}>
-            <Text style={{ fontSize: 16 }}>📱</Text>
-          </View>
+            <TouchableOpacity
+              style={[styles.primaryButton, (isLoading || phone.length !== 10) && styles.primaryButtonDisabled]}
+              onPress={handleSendOTP}
+              disabled={isLoading || phone.length !== 10}
+              activeOpacity={0.7}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <>
+                  <Text style={styles.primaryButtonText}>Send OTP</Text>
+                  <Ionicons name="arrow-forward" size={18} color="white" />
+                </>
+              )}
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={styles.label}>Enter OTP sent to +91 {phone}</Text>
+            <View style={styles.phoneContainer}>
+              <View style={styles.countryCode}>
+                <Text style={{ fontSize: 16 }}>🔒</Text>
+              </View>
+              <TextInput
+                placeholder="Enter 6-digit OTP"
+                keyboardType="number-pad"
+                maxLength={6}
+                value={otp}
+                onChangeText={setOtp}
+                style={styles.input}
+                autoFocus
+              />
+            </View>
 
-      {IsPhoneInputBarShow?    <TextInput
-            placeholder="Enter 10-digit mobile number"
-            keyboardType="number-pad"
-            maxLength={10}
-            value={phone}
-            onChangeText={setPhone}
-            style={styles.input}
-          /> :   <TextInput
-          placeholder="Enter 6-Digit OTP"
-          keyboardType="number-pad"
-          maxLength={6}
-          value={phone}
-          onChangeText={setPhone}
-          style={styles.input}
-        /> }
-        </View>
+            <TouchableOpacity
+              style={[styles.primaryButton, (isLoading || otp.length !== 6) && styles.primaryButtonDisabled]}
+              onPress={handleVerifyOTP}
+              disabled={isLoading || otp.length !== 6}
+              activeOpacity={0.7}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <>
+                  <Text style={styles.primaryButtonText}>Verify & Login</Text>
+                  <Ionicons name="checkmark-circle" size={18} color="white" />
+                </>
+              )}
+            </TouchableOpacity>
 
-        {/* OTP Button */}
-        <TouchableOpacity
-          style={[styles.primaryButton, (isLoading || phone.length !== 10) && styles.primaryButtonDisabled]}
-          onPress={handleOTPLogin}
-          disabled={isLoading || phone.length !== 10}
-          activeOpacity={0.7}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <>
-              <Text style={styles.primaryButtonText}>Send OTP</Text>
-              <Ionicons name="arrow-forward" size={18} color="white" />
-            </>
-          )}
-        </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { setStep("phone"); setOtp(""); }}
+              style={styles.backLink}
+            >
+              <Ionicons name="arrow-back" size={14} color="#1E3A8A" />
+              <Text style={styles.backLinkText}>Change phone number</Text>
+            </TouchableOpacity>
+
+            <View style={styles.otpHint}>
+              <Ionicons name="information-circle-outline" size={14} color="#6B7280" />
+              <Text style={styles.otpHintText}>Demo OTP: 123456</Text>
+            </View>
+          </>
+        )}
 
         {/* Divider */}
         <View style={styles.divider}>
@@ -160,7 +231,7 @@ export default function WelcomeScreen() {
           />
           <Ionicons name="shield-checkmark" size={16} color="#1E3A8A" />
           <Text style={styles.secondaryButtonText}>
-            Login with DigiLocker
+            Quick Demo Login
           </Text>
         </TouchableOpacity>
 
@@ -258,14 +329,10 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: "#F3F4F6",
   },
-  codeText: {
-    fontWeight: "600",
-    marginLeft: 6,
-    color: "#1A2340",
-  },
   input: {
     flex: 1,
     paddingHorizontal: 14,
+    paddingVertical: 14,
     fontSize: 14,
     color: "#1A2340",
   },
@@ -283,6 +350,37 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "700",
     fontSize: 15,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.6,
+  },
+  backLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+  },
+  backLinkText: {
+    color: "#1E3A8A",
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  otpHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 6,
+    backgroundColor: "#FFF7ED",
+    borderRadius: 8,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  otpHintText: {
+    fontSize: 12,
+    color: "#92400E",
+    fontWeight: "600",
   },
   divider: {
     flexDirection: "row",
@@ -315,6 +413,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1A2340",
   },
+  secondaryButtonDisabled: {
+    opacity: 0.6,
+  },
   securityBox: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -335,11 +436,5 @@ const styles = StyleSheet.create({
   link: {
     color: "#1E3A8A",
     fontWeight: "600",
-  },
-  primaryButtonDisabled: {
-    opacity: 0.6,
-  },
-  secondaryButtonDisabled: {
-    opacity: 0.6,
   },
 });

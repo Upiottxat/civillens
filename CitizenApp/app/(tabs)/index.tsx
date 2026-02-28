@@ -1,70 +1,110 @@
-import React from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, Feather, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import IssueCard, { Issue } from "../../components/IssueCard";
-
-export const mockIssues: Issue[] = [
-  {
-    id: "1",
-    title: "Broken Streetlight on MG Road",
-    location: "MG Road, Sector 14, Gurugram",
-    status: "in-progress",
-    category: "Streetlight",
-    categoryIcon: "💡",
-    slaRemaining: "10h 24m",
-    slaWarning: true,
-    time: "2 hours ago",
-    ticketId: "#CVL-2024-00341",
-  },
-  {
-    id: "2",
-    title: "Water Leakage near Central Park",
-    location: "Central Park Gate, Connaught Place",
-    status: "assigned",
-    category: "Water Leakage",
-    categoryIcon: "💧",
-    slaRemaining: "1d 4h",
-    slaWarning: false,
-    time: "Yesterday, 3:12 PM",
-    ticketId: "#CVL-2024-00338",
-  },
-  {
-    id: "3",
-    title: "Large Pothole on Ring Road",
-    location: "Ring Road, Near ITO, New Delhi",
-    status: "submitted",
-    category: "Road Damage",
-    categoryIcon: "🚧",
-    slaRemaining: "2d 12h",
-    slaWarning: false,
-    time: "3 days ago",
-    ticketId: "#CVL-2024-00329",
-  },
-];
+import { complaintsAPI } from "@/services/api";
+import { transformComplaint } from "@/services/slaHelpers";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { user, logout } = useAuth();
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState({ total: 0, resolved: 0, pending: 0 });
+  const [profileVisible, setProfileVisible] = useState(false);
+  const [hasAlerts, setHasAlerts] = useState(false);
+
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          setProfileVisible(false);
+          await logout();
+        },
+      },
+    ]);
+  };
+
+  const fetchIssues = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const result = await complaintsAPI.getMine();
+      if (result.success && result.data) {
+        const transformed = result.data.map(transformComplaint);
+        setIssues(transformed);
+
+        // Compute stats
+        const total = result.data.length;
+        const resolved = result.data.filter(
+          (c: any) => c.status === "RESOLVED" || c.status === "CLOSED"
+        ).length;
+        const breached = result.data.filter(
+          (c: any) => c.slaBreached || c.status === "BREACHED"
+        ).length;
+        setStats({ total, resolved, pending: total - resolved });
+        setHasAlerts(breached > 0 || (total - resolved) > 0);
+      }
+    } catch (err) {
+      console.error("Error fetching issues:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Refresh on screen focus (e.g., after submitting a new complaint)
+  useFocusEffect(
+    useCallback(() => {
+      fetchIssues();
+    }, [])
+  );
+
+  const greeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good Morning ☀️";
+    if (h < 17) return "Good Afternoon 🌤️";
+    return "Good Evening 🌙";
+  };
+
+  const activeIssues = issues.filter(
+    (i) => i.status !== "resolved"
+  ).slice(0, 5);
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={() => fetchIssues(true)} />
+      }
+    >
       {/* Header */}
-      <LinearGradient
-        colors={["#1E3A8A", "#1E40AF"]}
-        style={styles.header}
-      >
+      <LinearGradient colors={["#1E3A8A", "#1E40AF"]} style={styles.header}>
         {/* Top Bar */}
         <View style={styles.topBar}>
           <View>
-            <Text style={styles.greeting}>Good Morning 🌤️</Text>
-            <Text style={styles.name}>Rahul Sharma</Text>
+            <Text style={styles.greeting}>{greeting()}</Text>
+            <Text style={styles.name}>{user?.name || "Citizen"}</Text>
           </View>
 
           <View style={styles.iconRow}>
@@ -73,10 +113,15 @@ export default function HomeScreen() {
               onPress={() => router.push("/(tabs)/NotificationsScreen")}
             >
               <Ionicons name="notifications-outline" size={18} color="white" />
-              <View style={styles.notificationDot} />
+              {hasAlerts && (
+                <View style={styles.notificationDot} />
+              )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => setProfileVisible(true)}
+            >
               <Feather name="user" size={18} color="white" />
             </TouchableOpacity>
           </View>
@@ -85,9 +130,9 @@ export default function HomeScreen() {
         {/* Stats */}
         <View style={styles.statsRow}>
           {[
-            { label: "Total Reports", value: "12", icon: "📋" },
-            { label: "Resolved", value: "8", icon: "✅" },
-            { label: "Pending", value: "3", icon: "⏳" },
+            { label: "Total Reports", value: `${stats.total}`, icon: "📋" },
+            { label: "Resolved", value: `${stats.resolved}`, icon: "✅" },
+            { label: "Pending", value: `${stats.pending}`, icon: "⏳" },
           ].map((stat) => (
             <View key={stat.label} style={styles.statCard}>
               <Text style={{ fontSize: 16 }}>{stat.icon}</Text>
@@ -131,10 +176,12 @@ export default function HomeScreen() {
 
           <View style={{ flex: 1 }}>
             <Text style={styles.bannerTitle}>
-              New Delhi Municipal Corp
+              CiviLens — Accountability Engine
             </Text>
             <Text style={styles.bannerSubtitle}>
-              87% resolution rate this month · Ward 14
+              {stats.total > 0
+                ? `${Math.round((stats.resolved / stats.total) * 100) || 0}% resolution rate`
+                : "Report your first issue →"}
             </Text>
           </View>
 
@@ -155,21 +202,86 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={{ gap: 10 }}>
-          {mockIssues.map((issue) => (
-            <IssueCard
-              key={issue.id}
-              issue={issue}
-              onPress={() =>
-                router.push(`/IssueDetails?id=${issue.id}` as any)
-              }
-            />
-          ))}
-        </View>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#1E3A8A" />
+            <Text style={styles.loadingText}>Loading your issues...</Text>
+          </View>
+        ) : activeIssues.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={{ fontSize: 28 }}>🎉</Text>
+            <Text style={styles.emptyTitle}>No active issues</Text>
+            <Text style={styles.emptySubtitle}>
+              All clear! Report an issue if you spot one.
+            </Text>
+          </View>
+        ) : (
+          <View style={{ gap: 10, paddingBottom: 20 }}>
+            {activeIssues.map((issue) => (
+              <IssueCard
+                key={issue.id}
+                issue={issue}
+                onPress={() =>
+                  router.push(`/(tabs)/IssueDetails?id=${issue.id}` as any)
+                }
+              />
+            ))}
+          </View>
+        )}
       </View>
+
+      {/* Profile Modal */}
+      <Modal
+        visible={profileVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setProfileVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setProfileVisible(false)}
+        >
+          <Pressable style={styles.profileCard} onPress={() => {}}>
+            <View style={styles.profileAvatar}>
+              <Feather name="user" size={28} color="#1E3A8A" />
+            </View>
+            <Text style={styles.profileName}>{user?.name || "Citizen"}</Text>
+            <Text style={styles.profilePhone}>
+              +91 {user?.phone || "—"}
+            </Text>
+            <View style={styles.profileDivider} />
+
+            <View style={styles.profileStats}>
+              <View style={styles.profileStatItem}>
+                <Text style={styles.profileStatValue}>{stats.total}</Text>
+                <Text style={styles.profileStatLabel}>Reports</Text>
+              </View>
+              <View style={styles.profileStatItem}>
+                <Text style={styles.profileStatValue}>{stats.resolved}</Text>
+                <Text style={styles.profileStatLabel}>Resolved</Text>
+              </View>
+              <View style={styles.profileStatItem}>
+                <Text style={styles.profileStatValue}>{stats.pending}</Text>
+                <Text style={styles.profileStatLabel}>Pending</Text>
+              </View>
+            </View>
+
+            <View style={styles.profileDivider} />
+
+            <TouchableOpacity
+              style={styles.logoutBtn}
+              onPress={handleLogout}
+            >
+              <Feather name="log-out" size={16} color="#DC2626" />
+              <Text style={styles.logoutText}>Logout</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -328,5 +440,108 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#1E3A8A",
     fontWeight: "600",
+  },
+  loadingContainer: {
+    alignItems: "center",
+    paddingVertical: 30,
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  emptyCard: {
+    backgroundColor: "white",
+    borderRadius: 14,
+    padding: 30,
+    alignItems: "center",
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginTop: 8,
+    color: "#1A2340",
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 4,
+  },
+
+  // Profile modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 30,
+  },
+  profileCard: {
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 24,
+    width: "100%",
+    maxWidth: 320,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  profileAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#EFF6FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1A2340",
+  },
+  profilePhone: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  profileDivider: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    width: "100%",
+    marginVertical: 16,
+  },
+  profileStats: {
+    flexDirection: "row",
+    gap: 24,
+  },
+  profileStatItem: {
+    alignItems: "center",
+  },
+  profileStatValue: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1E3A8A",
+  },
+  profileStatLabel: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    backgroundColor: "#FEF2F2",
+  },
+  logoutText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#DC2626",
   },
 });

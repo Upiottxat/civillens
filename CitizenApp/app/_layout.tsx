@@ -15,7 +15,6 @@ export {
 } from 'expo-router';
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
   initialRouteName: '(auth)',
 };
 
@@ -28,7 +27,6 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
@@ -60,15 +58,12 @@ function RootLayoutNav() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
-    const currentPath = segments.join('/');
 
-    // Only redirect if we're on a different route than expected
     if (!isAuthenticated && !inAuthGroup) {
-      // User is not authenticated, redirect to login
+      // User is not authenticated → redirect to login
       router.replace('/(auth)/Login');
-    } else if (isAuthenticated && inAuthGroup && currentPath !== '(tabs)') {
-      // User is authenticated but on auth screen, redirect to tabs
-      // Add a delay to prevent interference with button presses
+    } else if (isAuthenticated && inAuthGroup) {
+      // User is authenticated but on auth screen → redirect to tabs
       const timer = setTimeout(() => {
         router.replace('/(tabs)');
       }, 300);
@@ -78,15 +73,10 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name='(tabs)/NotificationsScreen' options={{ headerShown: false }} />
-        <Stack.Screen name='(tabs)/MyIssuesScreen' options={{ headerShown: false }} />
-        <Stack.Screen name='(tabs)/IssueDetails' options={{ headerShown: false }} />
-        <Stack.Screen name='(tabs)/ReportScreen' options={{ headerShown: false }} />
-        <Stack.Screen name='(tabs)/index' options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );
