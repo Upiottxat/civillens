@@ -4,5 +4,8 @@
 		"expo-linear-gradient": "^55.0.8",
 		"expo-location": "^55.1.2",
 		"react-native-svg": "^15.15.3"
+	},
+	"devDependencies": {
+		"prisma": "^7.4.2"
 	}
 }

@@ -1,137 +1,159 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import {
+  MOCK_COMPLAINTS,
+  MOCK_NOTIFICATIONS,
+  MOCK_USER,
+  MOCK_TOKEN,
+  mockClassify,
+  mockSubmitComplaint,
+} from './mockData';
 
-// ─── Server URL Configuration ───────────────────────────────────────────────
-// For local dev:
-//   Android emulator  → 10.0.2.2 (maps to host localhost)
-//   iOS simulator     → localhost (shares host network)
-//   Physical device   → your machine's LAN IP (e.g. 192.168.x.x)
-//
-// Set EXPO_PUBLIC_API_URL in your .env or app.config for physical devices.
+// ─── MODE SWITCH ─────────────────────────────────────────────────────────────
+// true  → use real backend API at BASE_URL
+// false → use built-in mock data (no server needed)
+const USE_BACKEND = true;
 
+// ─── Server URL ──────────────────────────────────────────────────────────────
 function getBaseUrl(): string {
-  // Allow override via Expo env var (useful for physical devices / production)
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
   if (envUrl) return envUrl;
 
-  if (!__DEV__) {
-    // Production — replace with your deployed API URL
-    return 'https://api.civilens.in/api/v1';
-  }
+  if (!__DEV__) return 'https://api.civilens.in/api/v1';
 
-  // Dev mode: pick the right localhost alias per platform
   const host = Platform.select({
-    android: '10.0.2.2',   // Android emulator → host machine
-    ios: 'localhost',       // iOS simulator shares host network
-    default: 'localhost',   // Web
+    android: '10.0.2.2',
+    ios: 'localhost',
+    default: 'localhost',
   });
-
   return `http://${host}:4000/api/v1`;
 }
 
 const BASE_URL = getBaseUrl();
-
-const TOKEN_KEY = '@civiclens_auth_token';
+const TOKEN_KEY = '@civiclens_token';
 const USER_KEY = '@civiclens_user';
+const TIMEOUT_MS = 12_000;
 
-const REQUEST_TIMEOUT_MS = 15000; // 15 second timeout
+// ─── Token helpers ───────────────────────────────────────────────────────────
 
-// ─── Token helpers ──────────────────────────────────────────────────────────
-
-export async function getToken(): Promise<string | null> {
-  return AsyncStorage.getItem(TOKEN_KEY);
-}
-
-export async function setToken(token: string): Promise<void> {
-  await AsyncStorage.setItem(TOKEN_KEY, token);
-}
-
-export async function clearToken(): Promise<void> {
-  await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
-}
-
-export async function getStoredUser(): Promise<any | null> {
+export const getToken = () => AsyncStorage.getItem(TOKEN_KEY);
+export const setToken = (t: string) => AsyncStorage.setItem(TOKEN_KEY, t);
+export const clearToken = () => AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+export const getStoredUser = async (): Promise<any | null> => {
   const raw = await AsyncStorage.getItem(USER_KEY);
   return raw ? JSON.parse(raw) : null;
-}
+};
+export const setStoredUser = (u: any) =>
+  AsyncStorage.setItem(USER_KEY, JSON.stringify(u));
 
-export async function setStoredUser(user: any): Promise<void> {
-  await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
-}
+// ─── Fetch wrapper ───────────────────────────────────────────────────────────
 
-// ─── Core fetch wrapper ─────────────────────────────────────────────────────
-
-interface ApiOptions {
+interface ApiOpts {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: any;
   authenticated?: boolean;
   timeout?: number;
 }
 
+interface ApiRes<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  pagination?: any;
+}
+
 async function apiFetch<T = any>(
   endpoint: string,
-  options: ApiOptions = {}
-): Promise<{ success: boolean; data?: T; error?: string; pagination?: any }> {
-  const { method = 'GET', body, authenticated = true, timeout = REQUEST_TIMEOUT_MS } = options;
+  opts: ApiOpts = {}
+): Promise<ApiRes<T>> {
+  const {
+    method = 'GET',
+    body,
+    authenticated = true,
+    timeout = TIMEOUT_MS,
+  } = opts;
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
   if (authenticated) {
     const token = await getToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    if (token) headers['Authorization'] = `Bearer ${token}`;
   }
 
-  // AbortController for request timeout
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), timeout);
 
   try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
+      signal: ctrl.signal,
     });
-
-    clearTimeout(timeoutId);
-    const json = await response.json();
-    return json;
+    clearTimeout(tid);
+    return await res.json();
   } catch (err: any) {
-    clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
-      console.error(`API Timeout [${method} ${endpoint}]: Request took > ${timeout}ms`);
-      return { success: false, error: 'Request timed out. Please try again.' };
-    }
-    console.error(`API Error [${method} ${endpoint}]:`, err.message);
-    return { success: false, error: 'Network error. Please check your connection.' };
+    clearTimeout(tid);
+    if (err.name === 'AbortError')
+      return { success: false, error: 'Request timed out. Try again.' };
+    return { success: false, error: 'Network error. Check your connection.' };
   }
 }
 
-// ─── Auth API ───────────────────────────────────────────────────────────────
+// tiny delay for mock feel
+const wait = (ms = 350) =>
+  new Promise<void>((r) => setTimeout(r, ms + Math.random() * 200));
+
+// ─── Auth API ────────────────────────────────────────────────────────────────
 
 export const authAPI = {
-  sendOtp: (phone: string) =>
-    apiFetch('/auth/send-otp', {
+  sendOtp: async (phone: string): Promise<ApiRes> => {
+    if (!USE_BACKEND) {
+      await wait(500);
+      return { success: true, data: { message: 'OTP sent (demo: 123456)' } };
+    }
+    return apiFetch('/auth/send-otp', {
       method: 'POST',
       body: { phone },
       authenticated: false,
-    }),
+    });
+  },
 
-  verifyOtp: (phone: string, otp: string, name?: string) =>
-    apiFetch<{ token: string; user: any }>('/auth/verify-otp', {
+  verifyOtp: async (
+    phone: string,
+    otp: string,
+    name?: string
+  ): Promise<ApiRes<{ token: string; user: any }>> => {
+    if (!USE_BACKEND) {
+      await wait(600);
+      if (otp === '123456')
+        return {
+          success: true,
+          data: {
+            token: MOCK_TOKEN,
+            user: { ...MOCK_USER, phone, name: name || MOCK_USER.name },
+          },
+        };
+      return { success: false, error: 'Invalid OTP. Demo OTP is 123456.' };
+    }
+    return apiFetch('/auth/verify-otp', {
       method: 'POST',
       body: { phone, otp, name },
       authenticated: false,
-    }),
+    });
+  },
 
-  getMe: () => apiFetch<any>('/auth/me'),
+  getMe: async (): Promise<ApiRes> => {
+    if (!USE_BACKEND) {
+      await wait(150);
+      const u = await getStoredUser();
+      return { success: true, data: u || MOCK_USER };
+    }
+    return apiFetch('/auth/me');
+  },
 };
 
-// ─── Complaints API ─────────────────────────────────────────────────────────
+// ─── Complaints API ──────────────────────────────────────────────────────────
 
 export interface SubmitComplaintPayload {
   issueType: string;
@@ -144,32 +166,60 @@ export interface SubmitComplaintPayload {
 }
 
 export const complaintsAPI = {
-  submit: (data: SubmitComplaintPayload) =>
-    apiFetch('/complaints', { method: 'POST', body: data }),
+  submit: async (data: SubmitComplaintPayload): Promise<ApiRes> => {
+    if (!USE_BACKEND) {
+      await wait(1000);
+      return { success: true, data: mockSubmitComplaint(data) };
+    }
+    return apiFetch('/complaints', { method: 'POST', body: data });
+  },
 
-  getMine: () =>
-    apiFetch<any[]>('/complaints/mine'),
+  getMine: async (): Promise<ApiRes<any[]>> => {
+    if (!USE_BACKEND) {
+      await wait(400);
+      return { success: true, data: [...MOCK_COMPLAINTS] };
+    }
+    return apiFetch('/complaints/mine');
+  },
 
-  getById: (id: string) =>
-    apiFetch<any>(`/complaints/${id}`),
+  getById: async (id: string): Promise<ApiRes> => {
+    if (!USE_BACKEND) {
+      await wait(300);
+      const c = MOCK_COMPLAINTS.find((x) => x.id === id);
+      return c
+        ? { success: true, data: c }
+        : { success: false, error: 'Not found' };
+    }
+    return apiFetch(`/complaints/${id}`);
+  },
 };
 
 // ─── Notifications API ───────────────────────────────────────────────────────
 
 export const notificationsAPI = {
-  getMine: () =>
-    apiFetch<any[]>('/notifications'),
+  getMine: async (): Promise<ApiRes<any[]>> => {
+    if (!USE_BACKEND) {
+      await wait(350);
+      return { success: true, data: [...MOCK_NOTIFICATIONS] };
+    }
+    return apiFetch('/notifications');
+  },
 };
 
-// ─── Classification API ─────────────────────────────────────────────────────
+// ─── Classify API ────────────────────────────────────────────────────────────
 
 export const classifyAPI = {
-  classify: (description: string) =>
-    apiFetch<any>('/classify', {
+  classify: async (description: string): Promise<ApiRes> => {
+    if (!USE_BACKEND) {
+      await wait(500);
+      return { success: true, data: { suggestion: mockClassify(description) } };
+    }
+    return apiFetch('/classify', {
       method: 'POST',
       body: { description },
       authenticated: false,
-    }),
+    });
+  },
 };
 
 export default apiFetch;

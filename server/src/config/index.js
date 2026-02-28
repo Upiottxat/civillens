@@ -18,6 +18,12 @@ module.exports = {
     apiKey: process.env.CLOUDINARY_API_KEY,
     apiSecret: process.env.CLOUDINARY_API_SECRET,
   },
-  // Mocked OTP for demo
+  twilio: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID,
+    authToken: process.env.TWILIO_AUTH_TOKEN,
+    verifyServiceSid: process.env.TWILIO_VERIFY_SERVICE_SID,
+    enabled: process.env.USE_TWILIO_OTP === 'true',
+  },
+  // Mocked OTP for demo / fallback when Twilio is disabled
   mockOtp: '123456',
 };

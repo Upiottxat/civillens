@@ -1,58 +1,19 @@
-import React from "react";
-import { View, StyleSheet } from "react-native";
-import Svg, { Ellipse, Path, Circle } from "react-native-svg";
+import React from 'react';
+import { View, StyleSheet } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 
-export default function CiviLensLogo() {
+export default function CiviLensLogo({ size = 64 }: { size?: number }) {
   return (
-    <View style={styles.container}>
-      <Svg width={88} height={88} viewBox="0 0 88 88">
-        {/* Outer glow */}
-        <Ellipse cx="44" cy="50" rx="30" ry="18" fill="rgba(255,255,255,0.08)" />
-
-        {/* Shield body */}
-        <Path
-          d="M44 8 L74 22 L74 48 Q74 68 44 80 Q14 68 14 48 L14 22 Z"
-          fill="rgba(255,255,255,0.12)"
-          stroke="rgba(255,255,255,0.6)"
-          strokeWidth="2"
-        />
-
-        {/* Inner shield */}
-        <Path
-          d="M44 16 L68 28 L68 48 Q68 62 44 72 Q20 62 20 48 L20 28 Z"
-          fill="rgba(255,255,255,0.08)"
-          stroke="rgba(255,255,255,0.3)"
-          strokeWidth="1"
-        />
-
-        {/* Eye */}
-        <Ellipse
-          cx="44"
-          cy="46"
-          rx="15"
-          ry="10"
-          fill="none"
-          stroke="rgba(255,255,255,0.9)"
-          strokeWidth="2"
-        />
-
-        <Path
-          d="M29 46 Q36.5 36 44 46"
-          fill="none"
-          stroke="rgba(255,255,255,0.5)"
-          strokeWidth="1"
-        />
-
-        <Circle cx="44" cy="46" r="6" fill="white" opacity="0.95" />
-        <Circle cx="44" cy="46" r="3" fill="#1E3A8A" />
-        <Circle cx="45.5" cy="44.5" r="1" fill="white" />
+    <View style={[s.wrap, { width: size, height: size, borderRadius: size / 2 }]}>
+      <Svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="none">
+        <Circle cx="12" cy="12" r="10" stroke="white" strokeWidth="1.5" />
+        <Path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"
+              fill="white" />
       </Svg>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 20,
-  },
+const s = StyleSheet.create({
+  wrap: { backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
 });

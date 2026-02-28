@@ -3,6 +3,22 @@ const { success, error, paginated } = require('../utils/response');
 const { getDepartmentForCategory, assignSLA } = require('../services/sla.service');
 const { calculatePriorityScore } = require('../services/priority.service');
 
+/**
+ * Parse the priorityBreakdown JSON string back to an object.
+ * SQLite stores JSON fields as strings.
+ */
+function parseComplaint(complaint) {
+  if (!complaint) return complaint;
+  if (typeof complaint.priorityBreakdown === 'string') {
+    try {
+      complaint.priorityBreakdown = JSON.parse(complaint.priorityBreakdown);
+    } catch {
+      complaint.priorityBreakdown = null;
+    }
+  }
+  return complaint;
+}
+
 // ─── Citizen endpoints ──────────────────────────────────────────────────────
 
 /**
@@ -69,7 +85,7 @@ async function submitComplaint(req, res, next) {
           locationLabel: locationLabel || null,
           severity: normalizedSeverity,
           priorityScore: priority.score,
-          priorityBreakdown: priority.breakdown,
+          priorityBreakdown: JSON.stringify(priority.breakdown),
           slaDeadline,
         },
       });
@@ -90,7 +106,7 @@ async function submitComplaint(req, res, next) {
     return success(
       res,
       {
-        complaint,
+        complaint: parseComplaint(complaint),
         priority: priority.breakdown,
         sla: { deadline: slaDeadline, hoursAllowed },
         department: { id: department.id, name: department.name },
@@ -120,7 +136,7 @@ async function getMyComplaints(req, res, next) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return success(res, complaints);
+    return success(res, complaints.map(parseComplaint));
   } catch (err) {
     next(err);
   }
@@ -150,7 +166,7 @@ async function getComplaintById(req, res, next) {
       return error(res, 'Complaint not found.', 404);
     }
 
-    return success(res, complaint);
+    return success(res, parseComplaint(complaint));
   } catch (err) {
     next(err);
   }
@@ -216,7 +232,7 @@ async function getAllComplaints(req, res, next) {
       prisma.complaint.count({ where }),
     ]);
 
-    return paginated(res, complaints, {
+    return paginated(res, complaints.map(parseComplaint), {
       page: pageNum,
       limit: limitNum,
       total,

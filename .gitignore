@@ -1,2 +1,8 @@
 node_modules
 civilens_backend_build_9f762379.plan.md
+server/node_modules
+server/.env
+CitizenApp/node_modules
+CitizenApp/.env
+CitizenApp/android
+CitizenApp/ios

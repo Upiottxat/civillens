@@ -3,41 +3,19 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ──────────────────────────────────────────────────────────────────
-
-enum Role {
-  CITIZEN
-  AUTHORITY
-  ADMIN
-}
-
-enum Severity {
-  CRITICAL
-  HIGH
-  MEDIUM
-  LOW
-}
-
-enum Status {
-  SUBMITTED
-  ASSIGNED
-  IN_PROGRESS
-  RESOLVED
-  CLOSED
-  BREACHED
-}
-
 // ─── Models ─────────────────────────────────────────────────────────────────
+// Note: SQLite does not support enums. Role, Severity, Status are stored as
+// plain strings and validated at the application layer.
 
 model User {
   id        String   @id @default(uuid())
   phone     String   @unique
   name      String?
-  role      Role     @default(CITIZEN)
+  role      String   @default("CITIZEN")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -63,7 +41,7 @@ model SLARule {
   departmentId String
   department   Department @relation(fields: [departmentId], references: [id])
   issueType    String
-  severity     Severity
+  severity     String
   hoursAllowed Int
 
   @@unique([departmentId, issueType, severity])
@@ -80,18 +58,18 @@ model Complaint {
   issueType      String
   description    String?
   imageUrl       String?
-  proofImageUrl  String?     // authority uploads after resolution
+  proofImageUrl  String?
 
   latitude       Float
   longitude      Float
-  locationLabel  String?     // reverse geocoded label
+  locationLabel  String?
 
-  severity       Severity
+  severity       String
   priorityScore  Int         // 0–100, calculated on submission
-  priorityBreakdown Json?    // { severity, zone, population, duplicates }
-  status         Status      @default(SUBMITTED)
+  priorityBreakdown String? // JSON string: { severity, zone, population, duplicates }
+  status         String      @default("SUBMITTED")
 
-  slaDeadline    DateTime    // set on submission
+  slaDeadline    DateTime
   slaBreached    Boolean     @default(false)
 
   assignedToId   String?
@@ -102,7 +80,7 @@ model Complaint {
   resolvedAt     DateTime?
 
   statusHistory  StatusHistory[]
-  duplicateOf    String?     // points to parent complaint ID if duplicate
+  duplicateOf    String?
 
   @@index([citizenId])
   @@index([departmentId])
@@ -116,9 +94,9 @@ model StatusHistory {
   id          String    @id @default(uuid())
   complaintId String
   complaint   Complaint @relation(fields: [complaintId], references: [id])
-  status      Status
+  status      String
   note        String?
-  changedById String    // user id or "system"
+  changedById String
   createdAt   DateTime  @default(now())
 
   @@index([complaintId])

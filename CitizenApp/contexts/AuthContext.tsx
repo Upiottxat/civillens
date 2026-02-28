@@ -15,7 +15,7 @@ interface User {
   role: string;
 }
 
-interface AuthContextType {
+interface AuthCtx {
   isAuthenticated: boolean;
   isLoading: boolean;
   user: User | null;
@@ -24,7 +24,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthCtx | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -32,83 +32,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    checkAuthStatus();
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) { setIsLoading(false); return; }
+
+        // fast restore from storage
+        const stored = await getStoredUser();
+        if (stored) { setUser(stored); setIsAuthenticated(true); }
+
+        // validate with backend
+        const res = await authAPI.getMe();
+        if (res.success && res.data) {
+          setUser(res.data);
+          await setStoredUser(res.data);
+          setIsAuthenticated(true);
+        } else if (!stored) {
+          await clearToken();
+          setIsAuthenticated(false);
+        }
+      } catch {
+        const t = await getToken();
+        setIsAuthenticated(!!t);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, []);
 
-  const checkAuthStatus = async () => {
-    try {
-      const token = await getToken();
-      if (!token) {
-        setIsAuthenticated(false);
-        setIsLoading(false);
-        return;
-      }
-
-      // Try to restore user from storage first (instant)
-      const storedUser = await getStoredUser();
-      if (storedUser) {
-        setUser(storedUser);
-        setIsAuthenticated(true);
-      }
-
-      // Validate token with the backend in the background
-      const result = await authAPI.getMe();
-      if (result.success && result.data) {
-        setUser(result.data);
-        await setStoredUser(result.data);
-        setIsAuthenticated(true);
-      } else {
-        // Token is invalid/expired — clear everything
-        await clearToken();
-        setUser(null);
-        setIsAuthenticated(false);
-      }
-    } catch (error) {
-      console.error('Error checking auth status:', error);
-      // On network error, trust the stored token (offline support)
-      const token = await getToken();
-      setIsAuthenticated(!!token);
-    } finally {
-      setIsLoading(false);
-    }
+  const sendOtp = async (phone: string) => {
+    const r = await authAPI.sendOtp(phone);
+    return r.success ? { success: true } : { success: false, error: r.error || 'Failed to send OTP' };
   };
 
-  const sendOtp = async (phone: string): Promise<{ success: boolean; error?: string }> => {
-    const result = await authAPI.sendOtp(phone);
-    if (!result.success) {
-      return { success: false, error: result.error || 'Failed to send OTP' };
-    }
-    return { success: true };
-  };
+  const verifyOtp = async (phone: string, otp: string, name?: string) => {
+    const r = await authAPI.verifyOtp(phone, otp, name);
+    if (!r.success || !r.data) return { success: false, error: r.error || 'Verification failed' };
 
-  const verifyOtp = async (
-    phone: string,
-    otp: string,
-    name?: string
-  ): Promise<{ success: boolean; error?: string }> => {
-    const result = await authAPI.verifyOtp(phone, otp, name);
-    if (!result.success || !result.data) {
-      return { success: false, error: result.error || 'OTP verification failed' };
-    }
-
-    // Store token and user
-    await setToken(result.data.token);
-    await setStoredUser(result.data.user);
-    setUser(result.data.user);
+    await setToken(r.data.token);
+    await setStoredUser(r.data.user);
+    setUser(r.data.user);
     setIsAuthenticated(true);
-
     return { success: true };
   };
 
   const logout = async () => {
-    try {
-      await clearToken();
-      setUser(null);
-      setIsAuthenticated(false);
-    } catch (error) {
-      console.error('Error during logout:', error);
-      throw error;
-    }
+    await clearToken();
+    setUser(null);
+    setIsAuthenticated(false);
   };
 
   return (
@@ -119,9 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be inside AuthProvider');
+  return ctx;
 }

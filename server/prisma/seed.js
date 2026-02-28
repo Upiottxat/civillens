@@ -231,7 +231,7 @@ async function main() {
         locationLabel: data.locationLabel,
         severity: data.severity,
         priorityScore: data.priorityScore,
-        priorityBreakdown: data.priorityBreakdown,
+        priorityBreakdown: JSON.stringify(data.priorityBreakdown),
         status: data.status,
         slaDeadline: data.slaDeadline,
         slaBreached: data.slaBreached || false,

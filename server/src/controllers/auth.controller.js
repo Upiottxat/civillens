@@ -3,12 +3,29 @@ const config = require('../config');
 const { prisma } = require('../lib/prisma');
 const { success, error } = require('../utils/response');
 
-// In-memory OTP store (demo only — in production, use Redis or SMS provider)
+// ─── Twilio setup ────────────────────────────────────────────────────────────
+// Only initialize if credentials are present and enabled
+let twilioClient = null;
+
+if (config.twilio.enabled && config.twilio.accountSid && config.twilio.authToken) {
+  const twilio = require('twilio');
+  twilioClient = twilio(config.twilio.accountSid, config.twilio.authToken);
+  console.log('📲 Twilio OTP enabled (Verify API)');
+} else {
+  console.log('📲 Twilio OTP disabled — using mocked OTP (123456)');
+}
+
+// In-memory OTP store (used only when Twilio is disabled / demo mode)
 const otpStore = new Map();
 
 /**
  * POST /api/v1/auth/send-otp
- * Accepts { phone }, stores a mocked OTP (123456).
+ * Accepts { phone }.
+ *
+ * If Twilio is enabled:
+ *   → Sends a real OTP via Twilio Verify API to +91<phone>.
+ * If Twilio is disabled:
+ *   → Stores mocked OTP (123456) in memory.
  */
 async function sendOtp(req, res, next) {
   try {
@@ -18,19 +35,38 @@ async function sendOtp(req, res, next) {
       return error(res, 'Please provide a valid 10-digit phone number.');
     }
 
-    // Store the mocked OTP
-    otpStore.set(phone, {
-      otp: config.mockOtp,
-      expiresAt: Date.now() + 5 * 60 * 1000, // 5 min
-    });
+    // ── Twilio path ──
+    if (twilioClient && config.twilio.verifyServiceSid) {
+      try {
+        const verification = await twilioClient.verify.v2
+          .services(config.twilio.verifyServiceSid)
+          .verifications.create({
+            to: `+91${phone}`,
+            channel: 'sms', // 'sms' or 'call'
+          });
 
-    console.log(`[OTP] Sent ${config.mockOtp} to ${phone} (mocked)`);
+        console.log(`[Twilio] OTP sent to +91${phone} — status: ${verification.status}`);
 
-    return success(res, {
-      message: 'OTP sent successfully.',
-      // Include OTP in dev mode so the mobile app can auto-fill
-      ...(config.nodeEnv === 'development' && { otp: config.mockOtp }),
-    });
+        return success(res, {
+          message: 'OTP sent to your phone via SMS.',
+          channel: 'sms',
+          status: verification.status,
+        });
+      } catch (twilioErr) {
+        console.error('[Twilio] Send OTP failed:', twilioErr.message);
+
+        // If Twilio fails, fall back to mock in dev mode
+        if (config.nodeEnv === 'development') {
+          console.log('[Twilio] Falling back to mocked OTP in development mode');
+          return sendMockedOtp(phone, res);
+        }
+
+        return error(res, 'Failed to send OTP. Please try again later.', 500);
+      }
+    }
+
+    // ── Mock path (demo / no Twilio) ──
+    return sendMockedOtp(phone, res);
   } catch (err) {
     next(err);
   }
@@ -38,7 +74,14 @@ async function sendOtp(req, res, next) {
 
 /**
  * POST /api/v1/auth/verify-otp
- * Accepts { phone, otp }, returns JWT + user.
+ * Accepts { phone, otp, name }.
+ *
+ * If Twilio is enabled:
+ *   → Verifies OTP via Twilio Verify API.
+ * If Twilio is disabled:
+ *   → Checks against in-memory mock store.
+ *
+ * On success: upserts user, returns JWT + user object.
  */
 async function verifyOtp(req, res, next) {
   try {
@@ -48,25 +91,40 @@ async function verifyOtp(req, res, next) {
       return error(res, 'Phone and OTP are required.');
     }
 
-    const stored = otpStore.get(phone);
+    // ── Twilio path ──
+    if (twilioClient && config.twilio.verifyServiceSid) {
+      try {
+        const verificationCheck = await twilioClient.verify.v2
+          .services(config.twilio.verifyServiceSid)
+          .verificationChecks.create({
+            to: `+91${phone}`,
+            code: otp,
+          });
 
-    if (!stored) {
-      return error(res, 'OTP not found. Please request a new one.');
+        console.log(`[Twilio] Verify +91${phone} — status: ${verificationCheck.status}`);
+
+        if (verificationCheck.status !== 'approved') {
+          return error(res, 'Invalid OTP. Please check and try again.');
+        }
+      } catch (twilioErr) {
+        console.error('[Twilio] Verify OTP failed:', twilioErr.message);
+
+        // In dev, allow mock fallback
+        if (config.nodeEnv === 'development') {
+          console.log('[Twilio] Falling back to mock verification in dev');
+          const mockOk = verifyMockedOtp(phone, otp);
+          if (!mockOk) return error(res, 'Invalid OTP.');
+        } else {
+          return error(res, 'OTP verification failed. Please try again.', 500);
+        }
+      }
+    } else {
+      // ── Mock path ──
+      const mockOk = verifyMockedOtp(phone, otp);
+      if (!mockOk) return error(res, mockOk === null ? 'OTP not found. Request a new one.' : 'Invalid OTP.');
     }
 
-    if (Date.now() > stored.expiresAt) {
-      otpStore.delete(phone);
-      return error(res, 'OTP expired. Please request a new one.');
-    }
-
-    if (stored.otp !== otp) {
-      return error(res, 'Invalid OTP.');
-    }
-
-    // OTP valid — clear it
-    otpStore.delete(phone);
-
-    // Upsert user (create if first login)
+    // ── OTP is valid — upsert user & issue JWT ──
     const user = await prisma.user.upsert({
       where: { phone },
       update: {
@@ -79,7 +137,6 @@ async function verifyOtp(req, res, next) {
       },
     });
 
-    // Generate JWT
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       config.jwt.secret,
@@ -116,6 +173,43 @@ async function getMe(req, res, next) {
   } catch (err) {
     next(err);
   }
+}
+
+// ─── Mock helpers (used when Twilio is disabled) ─────────────────────────────
+
+function sendMockedOtp(phone, res) {
+  otpStore.set(phone, {
+    otp: config.mockOtp,
+    expiresAt: Date.now() + 5 * 60 * 1000, // 5 min
+  });
+
+  console.log(`[Mock] OTP ${config.mockOtp} stored for ${phone}`);
+
+  return success(res, {
+    message: 'OTP sent successfully.',
+    // Include OTP in response during development for easy testing
+    ...(config.nodeEnv === 'development' && { otp: config.mockOtp }),
+  });
+}
+
+/**
+ * Returns true if OTP is valid, false if invalid, null if not found / expired.
+ */
+function verifyMockedOtp(phone, otp) {
+  const stored = otpStore.get(phone);
+
+  if (!stored) return null;
+
+  if (Date.now() > stored.expiresAt) {
+    otpStore.delete(phone);
+    return null;
+  }
+
+  if (stored.otp !== otp) return false;
+
+  // Valid — clean up
+  otpStore.delete(phone);
+  return true;
 }
 
 module.exports = { sendOtp, verifyOtp, getMe };
