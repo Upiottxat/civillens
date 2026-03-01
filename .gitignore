@@ -1,8 +1,27 @@
+# Dependencies
 node_modules
-civilens_backend_build_9f762379.plan.md
-server/node_modules
+
+# Environment files
+.env
 server/.env
-CitizenApp/node_modules
 CitizenApp/.env
+
+# Build outputs
+dist
+build
+coverage
+
+# Platform-specific
 CitizenApp/android
 CitizenApp/ios
+
+# IDE / OS
+.vscode/settings.json
+.idea
+*.swp
+.DS_Store
+Thumbs.db
+
+# Misc
+civilens_backend_build_9f762379.plan.md
+*.log

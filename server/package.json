@@ -3,14 +3,19 @@
   "version": "1.0.0",
   "description": "CiviLens Backend API — civic complaint management with SLA enforcement",
   "main": "src/server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "start:prod": "npx prisma db push --skip-generate && node src/server.js",
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",
     "db:migrate": "npx prisma migrate dev",
     "db:seed": "node prisma/seed.js",
-    "db:studio": "npx prisma studio"
+    "db:studio": "npx prisma studio",
+    "healthcheck": "node -e \"fetch('http://localhost:' + (process.env.PORT||4000) + '/api/v1/health').then(r=>r.json()).then(d=>{ console.log(d); process.exit(d.success?0:1) }).catch(()=>process.exit(1))\""
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
@@ -26,5 +31,8 @@
   },
   "devDependencies": {
     "prisma": "^6.4.1"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }

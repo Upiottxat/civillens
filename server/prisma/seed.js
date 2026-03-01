@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient();
 
@@ -91,6 +92,10 @@ async function main() {
 
   // ─── 3. Demo Users ─────────────────────────────────────────────────────────
 
+  // Hash passwords for authority users
+  const authorityPassword = await bcrypt.hash('officer123', 10);
+  const adminPassword = await bcrypt.hash('admin123', 10);
+
   const citizen = await prisma.user.upsert({
     where: { phone: '9876543210' },
     update: {},
@@ -103,25 +108,45 @@ async function main() {
 
   const authority = await prisma.user.upsert({
     where: { phone: '9876543211' },
-    update: {},
+    update: {
+      email: 'officer@gov.in',
+      passwordHash: authorityPassword,
+      department: 'Roads & Infrastructure',
+      designation: 'Ward Engineer',
+    },
     create: {
       phone: '9876543211',
-      name: 'Officer Rajesh Kumar',
+      email: 'officer@gov.in',
+      passwordHash: authorityPassword,
+      name: 'Ravi Shankar',
       role: 'AUTHORITY',
+      department: 'Roads & Infrastructure',
+      designation: 'Ward Engineer',
     },
   });
 
   const admin = await prisma.user.upsert({
     where: { phone: '9876543212' },
-    update: {},
+    update: {
+      email: 'admin@gov.in',
+      passwordHash: adminPassword,
+      department: 'Municipal Corporation',
+      designation: 'Commissioner',
+    },
     create: {
       phone: '9876543212',
-      name: 'Admin Meera Gupta',
+      email: 'admin@gov.in',
+      passwordHash: adminPassword,
+      name: 'Meera Gupta',
       role: 'ADMIN',
+      department: 'Municipal Corporation',
+      designation: 'Commissioner',
     },
   });
 
   console.log('✅ 3 demo users created (citizen, authority, admin)');
+  console.log('   Authority login: officer@gov.in / officer123');
+  console.log('   Admin login:     admin@gov.in / admin123');
 
   // ─── 4. Demo Complaints ────────────────────────────────────────────────────
 
@@ -231,7 +256,7 @@ async function main() {
         locationLabel: data.locationLabel,
         severity: data.severity,
         priorityScore: data.priorityScore,
-        priorityBreakdown: JSON.stringify(data.priorityBreakdown),
+        priorityBreakdown: data.priorityBreakdown,
         status: data.status,
         slaDeadline: data.slaDeadline,
         slaBreached: data.slaBreached || false,

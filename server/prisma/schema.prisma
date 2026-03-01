@@ -3,21 +3,24 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Models ─────────────────────────────────────────────────────────────────
-// Note: SQLite does not support enums. Role, Severity, Status are stored as
-// plain strings and validated at the application layer.
 
 model User {
-  id        String   @id @default(uuid())
-  phone     String   @unique
-  name      String?
-  role      String   @default("CITIZEN")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  phone        String   @unique
+  email        String?  @unique
+  passwordHash String?
+  name         String?
+  role         String   @default("CITIZEN")
+  department   String?          // For authority users (e.g., "Water Supply")
+  designation  String?          // e.g., "Ward Engineer", "Commissioner"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   complaints         Complaint[]  @relation("CitizenComplaints")
   assignedComplaints Complaint[]  @relation("AssignedComplaints")
@@ -66,7 +69,7 @@ model Complaint {
 
   severity       String
   priorityScore  Int         // 0–100, calculated on submission
-  priorityBreakdown String? // JSON string: { severity, zone, population, duplicates }
+  priorityBreakdown Json?   // { severity, zone, population, duplicates }
   status         String      @default("SUBMITTED")
 
   slaDeadline    DateTime

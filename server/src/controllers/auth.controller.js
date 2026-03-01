@@ -166,8 +166,11 @@ async function getMe(req, res, next) {
     return success(res, {
       id: req.user.id,
       phone: req.user.phone,
+      email: req.user.email,
       name: req.user.name,
       role: req.user.role,
+      department: req.user.department,
+      designation: req.user.designation,
       createdAt: req.user.createdAt,
     });
   } catch (err) {

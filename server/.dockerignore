@@ -1,0 +1,34 @@
+# Dependencies (will be installed fresh in Docker)
+node_modules
+npm-debug.log*
+
+# Environment files (secrets injected by Railway)
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+
+# IDE / OS
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist
+build
+coverage
+
+# Documentation
+*.md
+LICENSE
+
+# Docker (prevent recursive copy)
+Dockerfile
+docker-compose*.yml
+.dockerignore
