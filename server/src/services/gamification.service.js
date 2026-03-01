@@ -341,39 +341,56 @@ async function getUserRank(userId, { scope = 'all', city, state } = {}) {
  * Redeem a reward — deducts coins and creates a redemption record with coupon code.
  */
 async function redeemReward(userId, rewardId) {
-  const reward = await prisma.reward.findUnique({ where: { id: rewardId } });
-  if (!reward) throw new Error('REWARD_NOT_FOUND');
-  if (!reward.active) throw new Error('REWARD_INACTIVE');
-  if (reward.stock === 0) throw new Error('OUT_OF_STOCK');
+  // Entire redemption is atomic — prevents race conditions on stock/balance
+  return prisma.$transaction(async (tx) => {
+    const reward = await tx.reward.findUnique({ where: { id: rewardId } });
+    if (!reward) throw new Error('REWARD_NOT_FOUND');
+    if (!reward.active) throw new Error('REWARD_INACTIVE');
+    if (reward.stock === 0) throw new Error('OUT_OF_STOCK');
 
-  // Deduct coins (throws INSUFFICIENT_BALANCE if not enough)
-  await deductCoins(userId, reward.coinCost, 'REWARD_REDEEMED', rewardId);
+    // Check & deduct balance atomically
+    const wallet = await getOrCreateWallet(userId, tx);
+    if (wallet.balance < reward.coinCost) throw new Error('INSUFFICIENT_BALANCE');
 
-  // Generate coupon code
-  const code = `CL-${reward.partner.substring(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
-
-  // Create redemption record
-  const redemption = await prisma.redemption.create({
-    data: {
-      userId,
-      rewardId,
-      coinSpent: reward.coinCost,
-      code,
-    },
-    include: {
-      reward: { select: { name: true, partner: true, description: true } },
-    },
-  });
-
-  // Decrement stock if limited
-  if (reward.stock > 0) {
-    await prisma.reward.update({
-      where: { id: rewardId },
-      data: { stock: { decrement: 1 } },
+    await tx.coinTransaction.create({
+      data: {
+        walletId: wallet.id,
+        amount: -reward.coinCost,
+        reason: 'REWARD_REDEEMED',
+        referenceId: rewardId,
+      },
     });
-  }
 
-  return redemption;
+    await tx.coinWallet.update({
+      where: { id: wallet.id },
+      data: { balance: { decrement: reward.coinCost } },
+    });
+
+    // Decrement stock if limited
+    if (reward.stock > 0) {
+      await tx.reward.update({
+        where: { id: rewardId },
+        data: { stock: { decrement: 1 } },
+      });
+    }
+
+    // Generate coupon code
+    const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const code = `CL-${reward.partner.substring(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}-${rand}`;
+
+    // Create redemption record
+    return tx.redemption.create({
+      data: {
+        userId,
+        rewardId,
+        coinSpent: reward.coinCost,
+        code,
+      },
+      include: {
+        reward: { select: { name: true, partner: true, description: true } },
+      },
+    });
+  });
 }
 
 // ─── Profile Summary ─────────────────────────────────────────────────────────

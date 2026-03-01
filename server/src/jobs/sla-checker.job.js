@@ -1,15 +1,14 @@
 const cron = require('node-cron');
 const { prisma } = require('../lib/prisma');
+const { onSLABreached } = require('../services/gamification.service');
 
 /**
  * SLA Breach Checker — runs every 5 minutes.
  *
  * Finds open complaints past their SLA deadline and auto-flags them as BREACHED.
- * This is the "standing ovation moment" during demos: the system itself
- * enforces accountability, not just the UI.
+ * Awards citizens coins for holding authorities accountable.
  */
 function startSLAChecker() {
-  // Every 5 minutes
   cron.schedule('*/5 * * * *', async () => {
     try {
       const now = new Date();
@@ -24,13 +23,11 @@ function startSLAChecker() {
         },
       });
 
-      if (breached.length === 0) {
-        return; // Nothing to do — keep logs clean
-      }
+      if (breached.length === 0) return;
 
-      // Update each breached complaint in a transaction
-      for (const complaint of breached) {
-        await prisma.$transaction(async (tx) => {
+      // Batch update all breached complaints in a single transaction
+      await prisma.$transaction(async (tx) => {
+        for (const complaint of breached) {
           await tx.complaint.update({
             where: { id: complaint.id },
             data: {
@@ -47,7 +44,16 @@ function startSLAChecker() {
               changedById: 'system',
             },
           });
-        });
+        }
+      });
+
+      // Award coins to citizens whose complaints were breached (fire-and-forget)
+      for (const complaint of breached) {
+        try {
+          await onSLABreached(complaint);
+        } catch (err) {
+          console.error(`[SLA Checker] Failed to award breach coins for ${complaint.id}:`, err.message);
+        }
       }
 
       console.log(

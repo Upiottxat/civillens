@@ -66,6 +66,10 @@ async function sendOtp(req, res, next) {
     }
 
     // ── Mock path (demo / no Twilio) ──
+    // Block mock OTP in production to prevent abuse
+    if (config.nodeEnv === 'production') {
+      return error(res, 'OTP service is not configured. Contact support.', 503);
+    }
     return sendMockedOtp(phone, res);
   } catch (err) {
     next(err);
@@ -119,7 +123,10 @@ async function verifyOtp(req, res, next) {
         }
       }
     } else {
-      // ── Mock path ──
+      // ── Mock path (blocked in production) ──
+      if (config.nodeEnv === 'production') {
+        return error(res, 'OTP service is not configured. Contact support.', 503);
+      }
       const mockOk = verifyMockedOtp(phone, otp);
       if (!mockOk) return error(res, mockOk === null ? 'OTP not found. Request a new one.' : 'Invalid OTP.');
     }

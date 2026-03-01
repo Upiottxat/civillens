@@ -1,17 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  MOCK_COMPLAINTS,
-  MOCK_NOTIFICATIONS,
-  MOCK_USER,
-  MOCK_TOKEN,
-  mockClassify,
-  mockSubmitComplaint,
-} from './mockData';
 
 // ─── MODE SWITCH ─────────────────────────────────────────────────────────────
-// true  → use real backend API at BASE_URL
-// false → use built-in mock data (no server needed)
-const USE_BACKEND = true;
+// Controlled via env var; defaults to real backend in production
+const USE_BACKEND = process.env.EXPO_PUBLIC_USE_MOCK !== 'true';
+
+// Lazy-load mock data only when needed (saves ~50KB from production bundle)
+const getMocks = () => require('./mockData');
 
 // ─── Server URL ──────────────────────────────────────────────────────────────
 function getBaseUrl(): string {
@@ -103,7 +97,7 @@ export const authAPI = {
   sendOtp: async (phone: string): Promise<ApiRes> => {
     if (!USE_BACKEND) {
       await wait(500);
-      return { success: true, data: { message: 'OTP sent (demo: 123456)' } };
+      return { success: true, data: { message: 'OTP sent (demo)' } };
     }
     return apiFetch('/auth/send-otp', {
       method: 'POST',
@@ -118,6 +112,7 @@ export const authAPI = {
     name?: string
   ): Promise<ApiRes<{ token: string; user: any }>> => {
     if (!USE_BACKEND) {
+      const { MOCK_TOKEN, MOCK_USER } = getMocks();
       await wait(600);
       if (otp === '123456')
         return {
@@ -127,7 +122,7 @@ export const authAPI = {
             user: { ...MOCK_USER, phone, name: name || MOCK_USER.name },
           },
         };
-      return { success: false, error: 'Invalid OTP. Demo OTP is 123456.' };
+      return { success: false, error: 'Invalid OTP.' };
     }
     return apiFetch('/auth/verify-otp', {
       method: 'POST',
@@ -138,6 +133,7 @@ export const authAPI = {
 
   getMe: async (): Promise<ApiRes> => {
     if (!USE_BACKEND) {
+      const { MOCK_USER } = getMocks();
       await wait(150);
       const u = await getStoredUser();
       return { success: true, data: u || MOCK_USER };
@@ -161,6 +157,7 @@ export interface SubmitComplaintPayload {
 export const complaintsAPI = {
   submit: async (data: SubmitComplaintPayload): Promise<ApiRes> => {
     if (!USE_BACKEND) {
+      const { mockSubmitComplaint } = getMocks();
       await wait(1000);
       return { success: true, data: mockSubmitComplaint(data) };
     }
@@ -169,6 +166,7 @@ export const complaintsAPI = {
 
   getMine: async (): Promise<ApiRes<any[]>> => {
     if (!USE_BACKEND) {
+      const { MOCK_COMPLAINTS } = getMocks();
       await wait(400);
       return { success: true, data: [...MOCK_COMPLAINTS] };
     }
@@ -177,8 +175,9 @@ export const complaintsAPI = {
 
   getById: async (id: string): Promise<ApiRes> => {
     if (!USE_BACKEND) {
+      const { MOCK_COMPLAINTS } = getMocks();
       await wait(300);
-      const c = MOCK_COMPLAINTS.find((x) => x.id === id);
+      const c = MOCK_COMPLAINTS.find((x: any) => x.id === id);
       return c
         ? { success: true, data: c }
         : { success: false, error: 'Not found' };
@@ -192,6 +191,7 @@ export const complaintsAPI = {
 export const notificationsAPI = {
   getMine: async (): Promise<ApiRes<any[]>> => {
     if (!USE_BACKEND) {
+      const { MOCK_NOTIFICATIONS } = getMocks();
       await wait(350);
       return { success: true, data: [...MOCK_NOTIFICATIONS] };
     }
@@ -204,6 +204,7 @@ export const notificationsAPI = {
 export const classifyAPI = {
   classify: async (description: string): Promise<ApiRes> => {
     if (!USE_BACKEND) {
+      const { mockClassify } = getMocks();
       await wait(500);
       return { success: true, data: { suggestion: mockClassify(description) } };
     }

@@ -66,12 +66,12 @@ async function authorityRegister(req, res, next) {
       return error(res, 'Name, email, and password are required.');
     }
 
-    if (password.length < 6) {
-      return error(res, 'Password must be at least 6 characters.');
+    if (password.length < 8) {
+      return error(res, 'Password must be at least 8 characters.');
     }
 
-    // Determine role (only allow AUTHORITY; ADMIN requires manual DB setup)
-    const userRole = role === 'ADMIN' ? 'ADMIN' : 'AUTHORITY';
+    // Only AUTHORITY can self-register; ADMIN requires manual DB setup
+    const userRole = 'AUTHORITY';
 
     // Check existing email
     const existingEmail = await prisma.user.findUnique({ where: { email } });
@@ -86,7 +86,7 @@ async function authorityRegister(req, res, next) {
       return error(res, 'An account with this phone number already exists.');
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await prisma.user.create({
       data: {

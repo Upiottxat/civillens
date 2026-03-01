@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Core Models ─────────────────────────────────────────────────────────────
@@ -97,6 +97,8 @@ model Complaint {
   @@index([status])
   @@index([slaBreached])
   @@index([slaDeadline])
+  @@index([createdAt(sort: Desc)])
+  @@index([severity, status])            // Dashboard filter combos
   @@map("complaints")
 }
 
@@ -125,6 +127,7 @@ model CoinWallet {
 
   transactions CoinTransaction[]
 
+  @@index([totalEarned(sort: Desc)])  // Leaderboard ranking
   @@map("coin_wallets")
 }
 

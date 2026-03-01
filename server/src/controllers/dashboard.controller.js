@@ -63,40 +63,60 @@ async function getSummary(req, res, next) {
 /**
  * GET /api/v1/dashboard/sla-stats
  * Returns per-department SLA compliance percentage.
+ * Uses _count aggregations — avoids loading all complaints into memory.
  */
 async function getSLAStats(req, res, next) {
   try {
     const departments = await prisma.department.findMany({
-      include: {
-        complaints: {
-          select: {
-            id: true,
-            slaBreached: true,
-            status: true,
-          },
+      select: {
+        id: true,
+        name: true,
+        _count: {
+          select: { complaints: true },
         },
       },
     });
 
-    const stats = departments.map((dept) => {
-      const total = dept.complaints.length;
-      const breached = dept.complaints.filter((c) => c.slaBreached).length;
-      const resolved = dept.complaints.filter(
-        (c) => c.status === 'RESOLVED' || c.status === 'CLOSED'
-      ).length;
+    // Parallel count queries per department — much lighter than include
+    const stats = await Promise.all(
+      departments.map(async (dept) => {
+        const total = dept._count.complaints;
 
-      return {
-        departmentId: dept.id,
-        departmentName: dept.name,
-        totalComplaints: total,
-        breachedCount: breached,
-        resolvedCount: resolved,
-        slaComplianceRate:
-          total > 0 ? Math.round(((total - breached) / total) * 100) : 100,
-        resolutionRate:
-          total > 0 ? Math.round((resolved / total) * 100) : 0,
-      };
-    });
+        if (total === 0) {
+          return {
+            departmentId: dept.id,
+            departmentName: dept.name,
+            totalComplaints: 0,
+            breachedCount: 0,
+            resolvedCount: 0,
+            slaComplianceRate: 100,
+            resolutionRate: 0,
+          };
+        }
+
+        const [breachedCount, resolvedCount] = await Promise.all([
+          prisma.complaint.count({
+            where: { departmentId: dept.id, slaBreached: true },
+          }),
+          prisma.complaint.count({
+            where: {
+              departmentId: dept.id,
+              status: { in: ['RESOLVED', 'CLOSED'] },
+            },
+          }),
+        ]);
+
+        return {
+          departmentId: dept.id,
+          departmentName: dept.name,
+          totalComplaints: total,
+          breachedCount,
+          resolvedCount,
+          slaComplianceRate: Math.round(((total - breachedCount) / total) * 100),
+          resolutionRate: Math.round((resolvedCount / total) * 100),
+        };
+      })
+    );
 
     return success(res, stats);
   } catch (err) {
