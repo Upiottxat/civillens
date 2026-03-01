@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
+    "build": "npx prisma generate",
+    "start": "npx prisma db push --skip-generate --accept-data-loss 2>&1 || echo '[WARN] db push skipped'; node src/server.js",
     "start:prod": "npx prisma db push --skip-generate && node src/server.js",
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",

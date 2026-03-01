@@ -30,9 +30,9 @@ function gracefulShutdown(signal) {
 
   // Force-kill after 10 s if connections don't drain
   setTimeout(() => {
-    console.error('   ⚠ Could not close in time — forcing exit.');
+    console.error('   Could not close in time — forcing exit.');
     process.exit(1);
-  }, 10_000);
+  }, 10000);
 }
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
