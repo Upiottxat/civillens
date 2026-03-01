@@ -98,11 +98,13 @@ async function main() {
 
   const citizen = await prisma.user.upsert({
     where: { phone: '9876543210' },
-    update: {},
+    update: { city: 'New Delhi', state: 'Delhi' },
     create: {
       phone: '9876543210',
       name: 'Priya Sharma',
       role: 'CITIZEN',
+      city: 'New Delhi',
+      state: 'Delhi',
     },
   });
 
@@ -281,6 +283,250 @@ async function main() {
   }
 
   console.log(`✅ ${complaintData.length} demo complaints created with status histories`);
+
+  // ─── 5. Badges ──────────────────────────────────────────────────────────────
+
+  const badgeData = [
+    {
+      slug: 'first-reporter',
+      name: 'First Reporter',
+      description: 'Submitted your very first complaint',
+      icon: '🌱',
+      tier: 'BRONZE',
+      criteria: { type: 'complaints_submitted', threshold: 1 },
+    },
+    {
+      slug: 'active-citizen',
+      name: 'Active Citizen',
+      description: 'Submitted 5 verified complaints',
+      icon: '📢',
+      tier: 'BRONZE',
+      criteria: { type: 'complaints_submitted', threshold: 5 },
+    },
+    {
+      slug: 'civic-champion',
+      name: 'Civic Champion',
+      description: 'Submitted 10 verified complaints',
+      icon: '🏅',
+      tier: 'SILVER',
+      criteria: { type: 'complaints_submitted', threshold: 10 },
+    },
+    {
+      slug: 'city-hero',
+      name: 'City Hero',
+      description: '25 of your complaints have been resolved',
+      icon: '🦸',
+      tier: 'GOLD',
+      criteria: { type: 'complaints_resolved', threshold: 25 },
+    },
+    {
+      slug: 'impact-maker',
+      name: 'Impact Maker',
+      description: '5 complaints resolved within SLA deadline',
+      icon: '⚡',
+      tier: 'SILVER',
+      criteria: { type: 'sla_resolved', threshold: 5 },
+    },
+    {
+      slug: 'streak-master',
+      name: 'Streak Master',
+      description: 'Filed 5 complaints in a single week',
+      icon: '🔥',
+      tier: 'SILVER',
+      criteria: { type: 'streak_7d', threshold: 5 },
+    },
+    {
+      slug: 'coin-collector',
+      name: 'Coin Collector',
+      description: 'Earned 100+ App Coins in total',
+      icon: '💰',
+      tier: 'BRONZE',
+      criteria: { type: 'total_coins', threshold: 100 },
+    },
+    {
+      slug: 'platinum-citizen',
+      name: 'Platinum Citizen',
+      description: 'Earned 500+ App Coins — a true civic leader',
+      icon: '💎',
+      tier: 'PLATINUM',
+      criteria: { type: 'total_coins', threshold: 500 },
+    },
+    {
+      slug: 'watchdog',
+      name: 'Watchdog',
+      description: '3 of your complaints resulted in SLA breach accountability',
+      icon: '🐕',
+      tier: 'GOLD',
+      criteria: { type: 'complaints_submitted', threshold: 25 },
+    },
+    {
+      slug: 'problem-solver',
+      name: 'Problem Solver',
+      description: '10 complaints resolved successfully',
+      icon: '🧩',
+      tier: 'SILVER',
+      criteria: { type: 'complaints_resolved', threshold: 10 },
+    },
+  ];
+
+  for (const badge of badgeData) {
+    await prisma.badge.upsert({
+      where: { slug: badge.slug },
+      update: {
+        name: badge.name,
+        description: badge.description,
+        icon: badge.icon,
+        tier: badge.tier,
+        criteria: badge.criteria,
+      },
+      create: badge,
+    });
+  }
+
+  console.log(`✅ ${badgeData.length} badges created`);
+
+  // ─── 6. Rewards ─────────────────────────────────────────────────────────────
+
+  const rewardData = [
+    {
+      name: 'Swiggy 20% Off',
+      description: 'Get 20% off on your next Swiggy order (max ₹100 discount)',
+      partner: 'Swiggy',
+      coinCost: 150,
+      category: 'FOOD',
+      stock: -1,
+    },
+    {
+      name: 'Swiggy 30% Off',
+      description: 'Get 30% off on your next Swiggy order (max ₹200 discount)',
+      partner: 'Swiggy',
+      coinCost: 300,
+      category: 'FOOD',
+      stock: 50,
+    },
+    {
+      name: 'Zomato Free Delivery',
+      description: 'Free delivery on your next 3 Zomato orders',
+      partner: 'Zomato',
+      coinCost: 100,
+      category: 'FOOD',
+      stock: -1,
+    },
+    {
+      name: 'Spotify Premium 1 Month',
+      description: 'One month of Spotify Premium subscription',
+      partner: 'Spotify',
+      coinCost: 500,
+      category: 'ENTERTAINMENT',
+      stock: 20,
+    },
+    {
+      name: 'YouTube Premium 1 Week',
+      description: 'One week of ad-free YouTube',
+      partner: 'YouTube',
+      coinCost: 200,
+      category: 'ENTERTAINMENT',
+      stock: -1,
+    },
+    {
+      name: 'Amazon ₹100 Voucher',
+      description: '₹100 Amazon Gift Card',
+      partner: 'Amazon',
+      coinCost: 400,
+      category: 'SHOPPING',
+      stock: 30,
+    },
+    {
+      name: 'Myntra 15% Off',
+      description: '15% off on Myntra (max ₹300)',
+      partner: 'Myntra',
+      coinCost: 250,
+      category: 'SHOPPING',
+      stock: -1,
+    },
+    {
+      name: 'BookMyShow ₹50 Off',
+      description: '₹50 off on any movie ticket',
+      partner: 'BookMyShow',
+      coinCost: 200,
+      category: 'ENTERTAINMENT',
+      stock: -1,
+    },
+  ];
+
+  for (const reward of rewardData) {
+    // Use name + partner as a pseudo-unique key
+    const existing = await prisma.reward.findFirst({
+      where: { name: reward.name, partner: reward.partner },
+    });
+
+    if (!existing) {
+      await prisma.reward.create({ data: reward });
+    } else {
+      await prisma.reward.update({
+        where: { id: existing.id },
+        data: reward,
+      });
+    }
+  }
+
+  console.log(`✅ ${rewardData.length} rewards created`);
+
+  // ─── 7. Demo Gamification Data ──────────────────────────────────────────────
+
+  // Give demo citizen some coins and badges
+  const wallet = await prisma.coinWallet.upsert({
+    where: { userId: citizen.id },
+    update: { balance: 185, totalEarned: 235 },
+    create: { userId: citizen.id, balance: 185, totalEarned: 235 },
+  });
+
+  // Add some demo transactions
+  const demoTransactions = [
+    { amount: 10, reason: 'COMPLAINT_SUBMITTED', referenceId: null },
+    { amount: 20, reason: 'FIRST_COMPLAINT', referenceId: null },
+    { amount: 5, reason: 'PHOTO_EVIDENCE', referenceId: null },
+    { amount: 10, reason: 'COMPLAINT_SUBMITTED', referenceId: null },
+    { amount: 15, reason: 'COMPLAINT_RESOLVED', referenceId: null },
+    { amount: 25, reason: 'SLA_RESOLVED', referenceId: null },
+    { amount: 10, reason: 'COMPLAINT_SUBMITTED', referenceId: null },
+    { amount: 10, reason: 'COMPLAINT_SUBMITTED', referenceId: null },
+    { amount: 10, reason: 'COMPLAINT_SUBMITTED', referenceId: null },
+    { amount: 5, reason: 'PHOTO_EVIDENCE', referenceId: null },
+    { amount: 10, reason: 'COMPLAINT_SUBMITTED', referenceId: null },
+    { amount: 15, reason: 'COMPLAINT_RESOLVED', referenceId: null },
+    { amount: 10, reason: 'SLA_BREACH_CITIZEN', referenceId: null },
+    { amount: 10, reason: 'COMPLAINT_SUBMITTED', referenceId: null },
+    { amount: 5, reason: 'PHOTO_EVIDENCE', referenceId: null },
+    { amount: 15, reason: 'COMPLAINT_RESOLVED', referenceId: null },
+    { amount: -50, reason: 'REWARD_REDEEMED', referenceId: null },
+  ];
+
+  // Clear old demo transactions
+  await prisma.coinTransaction.deleteMany({ where: { walletId: wallet.id } });
+
+  for (const tx of demoTransactions) {
+    await prisma.coinTransaction.create({
+      data: { walletId: wallet.id, ...tx },
+    });
+  }
+
+  // Award demo badges
+  const firstReporter = await prisma.badge.findUnique({ where: { slug: 'first-reporter' } });
+  const activeCitizen = await prisma.badge.findUnique({ where: { slug: 'active-citizen' } });
+  const coinCollector = await prisma.badge.findUnique({ where: { slug: 'coin-collector' } });
+
+  for (const badge of [firstReporter, activeCitizen, coinCollector]) {
+    if (badge) {
+      await prisma.userBadge.upsert({
+        where: { userId_badgeId: { userId: citizen.id, badgeId: badge.id } },
+        update: {},
+        create: { userId: citizen.id, badgeId: badge.id },
+      });
+    }
+  }
+
+  console.log('✅ Demo gamification data created (coins, transactions, badges)');
 
   console.log('\n🎉 Seeding complete!\n');
   console.log('Demo credentials:');

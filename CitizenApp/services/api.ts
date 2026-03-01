@@ -215,4 +215,55 @@ export const classifyAPI = {
   },
 };
 
+// ─── Gamification API ─────────────────────────────────────────────────────────
+
+export const gamificationAPI = {
+  /** Get coin wallet (balance + recent transactions) */
+  getWallet: async (): Promise<ApiRes> => {
+    return apiFetch('/gamification/wallet');
+  },
+
+  /** Get badges (earned + available) */
+  getBadges: async (): Promise<ApiRes> => {
+    return apiFetch('/gamification/badges');
+  },
+
+  /** Get leaderboard with optional scope filter */
+  getLeaderboard: async (params?: {
+    scope?: 'all' | 'city' | 'state';
+    city?: string;
+    state?: string;
+    page?: number;
+  }): Promise<ApiRes> => {
+    const query = new URLSearchParams();
+    if (params?.scope) query.set('scope', params.scope);
+    if (params?.city) query.set('city', params.city);
+    if (params?.state) query.set('state', params.state);
+    if (params?.page) query.set('page', String(params.page));
+    const qs = query.toString();
+    return apiFetch(`/gamification/leaderboard${qs ? `?${qs}` : ''}`);
+  },
+
+  /** Get available rewards */
+  getRewards: async (category?: string): Promise<ApiRes> => {
+    const qs = category ? `?category=${category}` : '';
+    return apiFetch(`/gamification/rewards${qs}`);
+  },
+
+  /** Redeem a reward by id */
+  redeemReward: async (rewardId: string): Promise<ApiRes> => {
+    return apiFetch(`/gamification/rewards/${rewardId}/redeem`, { method: 'POST' });
+  },
+
+  /** Get full gamification profile */
+  getProfile: async (): Promise<ApiRes> => {
+    return apiFetch('/gamification/profile');
+  },
+
+  /** Get user's redemption history */
+  getMyRedemptions: async (): Promise<ApiRes> => {
+    return apiFetch('/gamification/my-redemptions');
+  },
+};
+
 export default apiFetch;

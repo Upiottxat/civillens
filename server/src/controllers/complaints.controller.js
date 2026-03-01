@@ -2,6 +2,7 @@ const { prisma } = require('../lib/prisma');
 const { success, error, paginated } = require('../utils/response');
 const { getDepartmentForCategory, assignSLA } = require('../services/sla.service');
 const { calculatePriorityScore } = require('../services/priority.service');
+const { onComplaintSubmitted, onComplaintResolved } = require('../services/gamification.service');
 
 // ─── Citizen endpoints ──────────────────────────────────────────────────────
 
@@ -87,6 +88,14 @@ async function submitComplaint(req, res, next) {
       return created;
     });
 
+    // 5. Award gamification coins (fire-and-forget — don't block response)
+    let coinsAwarded = [];
+    try {
+      coinsAwarded = await onComplaintSubmitted(req.user.id, complaint.id, !!imageUrl);
+    } catch (coinErr) {
+      console.error('[Gamification] Failed to award coins on submit:', coinErr.message);
+    }
+
     return success(
       res,
       {
@@ -94,6 +103,7 @@ async function submitComplaint(req, res, next) {
         priority: priority.breakdown,
         sla: { deadline: slaDeadline, hoursAllowed },
         department: { id: department.id, name: department.name },
+        coinsAwarded,
       },
       201
     );
@@ -275,6 +285,15 @@ async function updateStatus(req, res, next) {
 
       return complaint;
     });
+
+    // Award coins when complaint is resolved
+    if (normalized === 'RESOLVED' || normalized === 'CLOSED') {
+      try {
+        await onComplaintResolved(updated);
+      } catch (coinErr) {
+        console.error('[Gamification] Failed to award coins on resolve:', coinErr.message);
+      }
+    }
 
     return success(res, updated);
   } catch (err) {

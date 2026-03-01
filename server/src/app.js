@@ -7,6 +7,7 @@ const complaintsRoutes = require('./routes/complaints.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const classifyRoutes = require('./routes/classify.routes');
 const notificationsRoutes = require('./routes/notifications.routes');
+const gamificationRoutes = require('./routes/gamification.routes');
 const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -58,6 +59,7 @@ app.use('/api/v1/complaints', complaintsRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/classify', classifyRoutes);
 app.use('/api/v1/notifications', notificationsRoutes);
+app.use('/api/v1/gamification', gamificationRoutes);
 
 // ─── 404 handler ────────────────────────────────────────────────────────────
 

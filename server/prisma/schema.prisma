@@ -8,7 +8,7 @@ datasource db {
 
 }
 
-// ─── Models ─────────────────────────────────────────────────────────────────
+// ─── Core Models ─────────────────────────────────────────────────────────────
 
 model User {
   id           String   @id @default(uuid())
@@ -19,11 +19,18 @@ model User {
   role         String   @default("CITIZEN")
   department   String?          // For authority users (e.g., "Water Supply")
   designation  String?          // e.g., "Ward Engineer", "Commissioner"
+  city         String?          // For leaderboard grouping
+  state        String?          // For state-level leaderboard
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   complaints         Complaint[]  @relation("CitizenComplaints")
   assignedComplaints Complaint[]  @relation("AssignedComplaints")
+
+  // ─── Gamification relations ──────────────────────────────────────────────
+  coinWallet    CoinWallet?
+  badges        UserBadge[]
+  redemptions   Redemption[]
 
   @@map("users")
 }
@@ -104,4 +111,93 @@ model StatusHistory {
 
   @@index([complaintId])
   @@map("status_history")
+}
+
+// ─── Gamification Models ─────────────────────────────────────────────────────
+
+model CoinWallet {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id])
+  balance      Int      @default(0)      // Current redeemable coins
+  totalEarned  Int      @default(0)      // Lifetime coins (for leaderboard ranking)
+  updatedAt    DateTime @updatedAt
+
+  transactions CoinTransaction[]
+
+  @@map("coin_wallets")
+}
+
+model CoinTransaction {
+  id          String     @id @default(uuid())
+  walletId    String
+  wallet      CoinWallet @relation(fields: [walletId], references: [id])
+  amount      Int                        // +ve = earned, -ve = redeemed
+  reason      String                     // COMPLAINT_SUBMITTED, SLA_RESOLVED, PHOTO_EVIDENCE, etc.
+  referenceId String?                    // complaintId or rewardId
+  createdAt   DateTime   @default(now())
+
+  @@index([walletId])
+  @@index([reason])
+  @@map("coin_transactions")
+}
+
+model Badge {
+  id          String   @id @default(uuid())
+  slug        String   @unique          // "civic-champion", "city-hero"
+  name        String                     // "Civic Champion"
+  description String
+  icon        String                     // emoji
+  tier        String   @default("BRONZE") // BRONZE, SILVER, GOLD, PLATINUM
+  criteria    Json                       // { type: "complaints_submitted", threshold: 10 }
+  createdAt   DateTime @default(now())
+
+  userBadges  UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  badgeId   String
+  badge     Badge    @relation(fields: [badgeId], references: [id])
+  awardedAt DateTime @default(now())
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+  @@map("user_badges")
+}
+
+model Reward {
+  id           String   @id @default(uuid())
+  name         String                   // "Swiggy 20% Off"
+  description  String
+  imageUrl     String?
+  partner      String                   // "Swiggy", "Spotify"
+  coinCost     Int                      // 500 coins
+  category     String                   // FOOD, ENTERTAINMENT, SHOPPING
+  stock        Int      @default(-1)    // -1 = unlimited
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  redemptions  Redemption[]
+
+  @@map("rewards")
+}
+
+model Redemption {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  rewardId  String
+  reward    Reward   @relation(fields: [rewardId], references: [id])
+  coinSpent Int
+  code      String?                     // Coupon code
+  status    String   @default("ACTIVE") // ACTIVE, USED, EXPIRED
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("redemptions")
 }
