@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 import {
   MOCK_COMPLAINTS,
   MOCK_NOTIFICATIONS,
@@ -19,14 +18,8 @@ function getBaseUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
   if (envUrl) return envUrl;
 
-  if (!__DEV__) return 'https://api.civilens.in/api/v1';
-
-  const host = Platform.select({
-    android: '10.0.2.2',
-    ios: 'localhost',
-    default: 'localhost',
-  });
-  return `http://${host}:4000/api/v1`;
+  // Railway deployed backend
+  return 'https://devoted-radiance-production.up.railway.app/api/v1';
 }
 
 const BASE_URL = getBaseUrl();
