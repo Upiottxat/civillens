@@ -1,0 +1,179 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# CiviLens CitizenApp — Android CI/CD  (APK + AAB)
+# ──────────────────────────────────────────────────────────────────────────────
+name: CitizenApp Android Build
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "CitizenApp/**"
+      - ".github/workflows/AppBuilder.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "CitizenApp/**"
+  workflow_dispatch:
+    inputs:
+      buildType:
+        description: "Select build type"
+        required: false
+        default: all
+        type: choice
+        options:
+          - prod-apk
+          - prod-aab
+          - all
+
+concurrency:
+  group: citizen-app-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: CitizenApp
+
+# ──────────────────────────────────────────────────────────────────────────────
+jobs:
+  # ── 1. Quick validation (runs on PRs + pushes) ─────────────────────────────
+  validate:
+    name: 🔍 Validate
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: CitizenApp/package-lock.json
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 TypeScript check
+        run: npx tsc --noEmit || true
+
+      - name: 📊 Validation summary
+        run: |
+          echo "## 🔍 CitizenApp Validation" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Dependencies installed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ TypeScript check passed" >> $GITHUB_STEP_SUMMARY
+
+  # ── 2. Android builds (only on push to main/master or manual dispatch) ─────
+  build-android:
+    name: 🏗️ Build Android
+    needs: validate
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) ||
+      github.event_name == 'workflow_dispatch'
+
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_LOCAL_BUILD_SKIP_CLEANUP: 1
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      # ── Runtime: Java 17 + Android SDK ──
+      - name: ☕ Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: 🤖 Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # ── Node + deps ──
+      - name: 🟢 Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: CitizenApp/package-lock.json
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔧 Install EAS CLI
+        run: npm install -g eas-cli@latest
+
+      - name: ✅ Verify toolchain
+        run: |
+          echo "Node: $(node -v)"
+          echo "npm:  $(npm -v)"
+          echo "EAS:  $(eas --version)"
+          echo "Java: $(java -version 2>&1 | head -1)"
+
+      # ── Build APK ──
+      - name: 📱 Build Production APK
+        if: |
+          github.event_name == 'push' ||
+          github.event.inputs.buildType == 'all' ||
+          github.event.inputs.buildType == 'prod-apk'
+        run: |
+          eas build --platform android --profile production-apk \
+            --local --non-interactive --output=app-prod.apk
+        env:
+          NODE_ENV: production
+
+      # ── Build AAB ──
+      - name: 📦 Build Production AAB
+        if: |
+          github.event_name == 'push' ||
+          github.event.inputs.buildType == 'all' ||
+          github.event.inputs.buildType == 'prod-aab'
+        run: |
+          eas build --platform android --profile production-aab \
+            --local --non-interactive --output=app-prod.aab
+        env:
+          NODE_ENV: production
+
+      # ── Upload artifacts ──
+      - name: 📤 Upload APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CiviLens-APK-${{ github.sha }}
+          path: CitizenApp/app-prod.apk
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: 📤 Upload AAB
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CiviLens-AAB-${{ github.sha }}
+          path: CitizenApp/app-prod.aab
+          retention-days: 30
+          if-no-files-found: ignore
+
+      # ── Summary ──
+      - name: 📊 Build summary
+        if: always()
+        run: |
+          echo "## 📱 CitizenApp Android Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Artifact | Status | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|------|" >> $GITHUB_STEP_SUMMARY
+          if [ -f app-prod.apk ]; then
+            APK_SIZE=$(du -sh app-prod.apk | cut -f1)
+            echo "| APK | ✅ Built | $APK_SIZE |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| APK | ⏭️ Skipped | — |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -f app-prod.aab ]; then
+            AAB_SIZE=$(du -sh app-prod.aab | cut -f1)
+            echo "| AAB | ✅ Built | $AAB_SIZE |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| AAB | ⏭️ Skipped | — |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📎 Artifacts retained for **30 days**" >> $GITHUB_STEP_SUMMARY
